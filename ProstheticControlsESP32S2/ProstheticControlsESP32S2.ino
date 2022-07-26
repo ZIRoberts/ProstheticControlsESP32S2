@@ -38,6 +38,12 @@
 //Creates ADC objects
 ESP32AnalogRead myoware1; //Myoware Sensor Inside Fore arm
 ESP32AnalogRead myoware2; // Myoware Sensor Outside Fore arm
+ESP32AnalogRead fsrIndex; // FSR Sensor for Index Finger
+ESP32AnalogRead fsrMiddle; // FSR Sensor for Middle Finger
+ESP32AnalogRead fsrRing; // FSR Sensor for Ring Finger
+ESP32AnalogRead fsrPinky; // FSR Sensor for Pinky Finger
+ESP32AnalogRead fsrThumb; // FSR Sensor for Thumb
+ESP32AnalogRead fsrPalm; // FSR Sensor for Palm of Hand
 
 //Deque definitions
 std::deque<double> myo1Deque;
@@ -50,6 +56,12 @@ int myo2DequeSize;
 //stores ADC reading 
 volatile double myo1Volts;
 volatile double myo2Volts;
+volatile double fsrI_Volts;
+volatile double fsrM_Volts;
+volatile double fsrR_Volts;
+volatile double fsrPi_Volts;
+volatile double fsrT_Volts;
+volatile double fsrPa_Volts;
 
 //Timer Flags
 volatile bool timer0 = false;
@@ -64,14 +76,27 @@ bool IRAM_ATTR TimerHandler0(void * timerNo) {
   timerDebug = millis();
   myo1Volts = myoware1.readVoltage();
   myo2Volts = myoware2.readVoltage();
+  fsrI_Volts = fsrIndex.readVoltage();
+  fsrM_Volts = fsrMiddle.readVoltage();
+  fsrR_Volts = fsrRing.readVoltage();
+  fsrPi_Volts = fsrPinky.readVoltage();
+  fsrT_Volts = fsrThumb.readVoltage();
+  fsrPa_Volts = fsrPalm.readVoltage();
 
   return true;
+}
+
+double forceValue(double voltage){
+  double conversion;
+  conversion = pow((271/(47000*((3.3/voltage)-1))),(1/0.69));
+  
+  return conversion;
 }
 
 void setup() {
   Serial.begin(115200);
 
-  //Hardware TImer Configuration
+  //Hardware Timer Configuration
 
   while (!Serial);
 
@@ -90,6 +115,12 @@ void setup() {
   //attatch ADC object to GPIO pins
   myoware1.attach(1); //Myoware 1 is attatched to GPIO 1
   myoware2.attach(2); //Myoware 2 is attatched to GPIO 2
+  fsrIndex.attach(8); //FSR on Index finger is attached to GPIO 8
+  fsrMiddle.attach(9); //FSR on Middle finger is attached to GPIO 9
+  fsrRing.attach(10); //FSR on Ring finger is attached to GPIO 10
+  fsrPinky.attach(11); //FSR on Pinky is attached to GPIO 11
+  fsrThumb.attach(12); //FSR on Thumb is attached to GPIO 12
+  fsrPalm.attach(13); //FSR on the Palm of the hand is attached to GPIO 13
 
   //Configures PWM Frequency and Resulution for all channels
    for (int channel = 0; channel < 5; channel++){
@@ -119,14 +150,14 @@ void loop() {
     myo1Deque.push_front(double(myo1Volts));
     myo2Deque.push_front(double(myo2Volts));
 
-    //matains Deque size of 500 elements,
+    //maintains Deque size of 500 elements,
     if ((myo1DequeSize = myo1Deque.size()) >= MAX_DEQUE_SIZE) 
       //myo1Vector.remove(myo1VectorSize - 1); //removes last element of myo1vector
       myo1Deque.pop_back();
     else if ((myo2DequeSize = myo1Deque.size()) >= MAX_DEQUE_SIZE)
       //myo2Vector.remove(myo2VectorSize - 1); //removes last element of myo2vector
      myo1Deque.pop_back();
-
+    
     Serial.println(timerDebug);
     Serial.println(myo1Volts);
     Serial.println(myo2Volts);
