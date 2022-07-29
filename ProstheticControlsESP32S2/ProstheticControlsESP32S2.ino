@@ -9,6 +9,8 @@
 //C++ libraries are not native to arduino, included within ESPIDF
 #include <deque> 
 
+int duty = 5;
+
 //Hardware Timer Defintions
 #define TIMER0_INTERVAL_MS  1000
 #define TIMER0_PERIOD_MS    10
@@ -31,6 +33,13 @@
 #define FINGER_MIDDLE_CHANNEL 2
 #define FINGER_RING_CHANNEL 3
 #define FINGER_PINKY_CHANNEL 4
+
+//Max Distance Drivable
+#define FINGER_PINKY_DRIVE_LIMIT 157
+#define FINGER_RING_DRIVE_LIMIT 159
+#define FINGER_MIDDLE_DRIVE_LIMIT 180
+#define FINGER_INDEX_DRIVE_LIMIT 205
+#define FINGER_THUMB_DRIVE_LIMIT 129
 
 //sets max deque size to 5 seconds, 500 samples [0,499]
 #define MAX_DEQUE_SIZE 499
@@ -62,17 +71,56 @@ volatile int timerDebug = 0;
 bool IRAM_ATTR TimerHandler0(void * timerNo) { 
   timer0 = true;
   timerDebug = millis();
+  
   myo1Volts = myoware1.readVoltage();
   myo2Volts = myoware2.readVoltage();
-
   return true;
+}
+
+//predefine functions
+bool motorDriveCheck(uint8_t PwmChannel, uint8_t duty){
+  if (PwmChannel == FINGER_THUMB_CHANNEL){
+    if (duty < FINGER_THUMB_DRIVE_LIMIT){
+      return true; 
+    } else{
+      return false;
+    }
+  } else if (PwmChannel == FINGER_INDEX_CHANNEL){
+    if (duty < FINGER_INDEX_DRIVE_LIMIT){
+      return true;
+    } else {
+      return false;
+    }
+  }else if (PwmChannel == FINGER_MIDDLE_CHANNEL){
+    if (duty < FINGER_MIDDLE_DRIVE_LIMIT){
+      return true;
+    } else {
+      return false;
+    }
+  } else if (PwmChannel == FINGER_RING_CHANNEL){
+    if (duty < FINGER_RING_DRIVE_LIMIT){
+      return true;
+    } else {
+      return false;
+    }
+  } else if (PwmChannel == FINGER_PINKY_CHANNEL){
+    if (duty < FINGER_PINKY_DRIVE_LIMIT){
+      return true;
+    } else {
+      return false; 
+    }
+  } else {
+    return false;
+  }
 }
 
 void setup() {
   Serial.begin(115200);
 
-  //Hardware TImer Configuration
+  //Set CPU clock to 80MHz
+  setCpuFrequencyMhz(240); 
 
+  //Hardware TImer Configuration
   while (!Serial);
 
   delay(100);
@@ -107,11 +155,13 @@ void setup() {
   for (int channel = 0; channel < 5; channel++){
     ledcWrite(channel, MOTOR_HOME);
   }
+  Serial.println("finished setup");
 }
 
 void loop() {
 
   if (timer0){
+    Serial.println("timer flag");
     //reset timer flag
     timer0 = false;
 
@@ -121,23 +171,41 @@ void loop() {
 
     //matains Deque size of 500 elements,
     if ((myo1DequeSize = myo1Deque.size()) >= MAX_DEQUE_SIZE) 
-      //myo1Vector.remove(myo1VectorSize - 1); //removes last element of myo1vector
       myo1Deque.pop_back();
     else if ((myo2DequeSize = myo1Deque.size()) >= MAX_DEQUE_SIZE)
-      //myo2Vector.remove(myo2VectorSize - 1); //removes last element of myo2vector
-     myo1Deque.pop_back();
+      myo1Deque.pop_back();
 
-    Serial.println(timerDebug);
-    Serial.println(myo1Volts);
-    Serial.println(myo2Volts);
+   // Serial.println(timerDebug);
+    Serial.println(double(myo1Volts));
+    Serial.println(double(myo2Volts));
   }
   
   //Tempoary drive for motors
   //if either myoware sensor reads above 1V then all motors are driven to max position
-  if (myo1Volts > 1.0 || myo2Volts > 1.0){
-    for (int channel = 0; channel < 5; channel++){
-      ledcWrite(channel, 205); //205 is 80% duty cycles @8 bit resolution
+  if (double(myo1Volts) > 1.0){
+    while(duty < 205){ //205 is 80% duty cycles @8 bit resolution
+      //Serial.println(duty);
+      for (int i = 0; i < 5; i++){
+        ledcWrite(i, duty); 
+      }
+      duty += 5; // current iterating in steps of 5 
     }
-  }
+  }else if (double(myo2Volts) > 1.0){
+    while(duty < 205){ //205 is 80% duty cycles @8 bit resolution
+      //Serial.println(duty);
+      for (int i = 0; i < 5; i++){
+        if (i != 2)
+          ledcWrite(i, duty); 
+      }
+      duty += 5; // current iterating in steps of 5 
+    }
+  }else{
+    //Motor Control to home position: 30%
+    Serial.println("motor home");
+    for (int channel = 0; channel < 5; channel++){
+      duty = 5;
+      ledcWrite(channel, MOTOR_HOME);
+    }
 
+  }
 }
