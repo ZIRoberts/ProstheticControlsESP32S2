@@ -87,10 +87,10 @@ bool IRAM_ATTR TimerHandler0(void * timerNo) {
 }
 
 double forceValue(double voltage){
-  double conversion;
-  conversion = pow((271/(47000*((3.3/voltage)-1))),(1/0.69));
+  double forceConversion;
+  forceConversion = pow((271/(47000*((3.3/voltage)-1))),(1/0.69));
   
-  return conversion;
+  return forceConversion;
 }
 
 void setup() {
@@ -143,9 +143,6 @@ void setup() {
 void loop() {
 
   if (timer0){
-    //reset timer flag
-    timer0 = false;
-
     //adds latest reading to the front of the vector
     myo1Deque.push_front(double(myo1Volts));
     myo2Deque.push_front(double(myo2Volts));
@@ -161,14 +158,26 @@ void loop() {
     Serial.println(timerDebug);
     Serial.println(myo1Volts);
     Serial.println(myo2Volts);
+    Serial.print("Voltage reading in V = ");
+    Serial.println(fsrI_Volts);
+    Serial.println(fsrM_Volts);
+    Serial.println(fsrR_Volts);
+    Serial.println(fsrPi_Volts);
+    Serial.println(fsrT_Volts);
+    Serial.println(fsrPa_Volts);
   }
   
   //Tempoary drive for motors
   //if either myoware sensor reads above 1V then all motors are driven to max position
-  if (myo1Volts > 1.0 || myo2Volts > 1.0){
+  if (myo1Volts > 1.4 || myo2Volts > 1.4){
+    hold = true;
     for (int channel = 0; channel < 5; channel++){
       ledcWrite(channel, 205); //205 is 80% duty cycles @8 bit resolution
     }
-  }
+  } else {
+     for (int channel = 0; channel < 5; channel++){
+    ledcWrite(channel, MOTOR_HOME);
+     }
+    }
 
 }
