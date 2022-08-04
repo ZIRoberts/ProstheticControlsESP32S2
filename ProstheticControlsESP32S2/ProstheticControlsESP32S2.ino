@@ -9,6 +9,8 @@
 //C++ libraries are not native to arduino, included within ESPIDF
 #include <deque> 
 
+int duty = 205;
+
 //Hardware Timer Defintions
 #define TIMER0_INTERVAL_MS  1000
 #define TIMER0_PERIOD_MS    10
@@ -16,7 +18,7 @@
 //General PWM Configuration
 #define PWM_FREQ 333 //Sets 333 Hz
 #define PWM_RESOLUTION 8 //Sets 8 bit resolution
-#define MOTOR_HOME 76 //30% duty cycle @8 bit resolution
+#define MOTOR_HOME 50 //30% duty cycle @8 bit resolution
 
 //Defines PWM Pins
 #define FINGER_THUMB_GPIO 42
@@ -32,12 +34,24 @@
 #define FINGER_RING_CHANNEL 3
 #define FINGER_PINKY_CHANNEL 4
 
+//Max Distance Drivable
+#define FINGER_PINKY_DRIVE_LIMIT 189
+#define FINGER_RING_DRIVE_LIMIT 159
+#define FINGER_MIDDLE_DRIVE_LIMIT 180
+#define FINGER_INDEX_DRIVE_LIMIT 205
+#define FINGER_THUMB_DRIVE_LIMIT 129
+
 //sets max deque size to 5 seconds, 500 samples [0,499]
 #define MAX_DEQUE_SIZE 499
 
 //Creates ADC objects
 ESP32AnalogRead myoware1; //Myoware Sensor Inside Fore arm
 ESP32AnalogRead myoware2; // Myoware Sensor Outside Fore arm
+ESP32AnalogRead thumbFingerCurrent;
+ESP32AnalogRead indexFingerCurrent;
+ESP32AnalogRead middleFingerCurrent;
+ESP32AnalogRead ringFingerCurrent;
+ESP32AnalogRead pinkyFingerCurrent;
 
 //Deque definitions
 std::deque<double> myo1Deque;
@@ -47,9 +61,16 @@ std::deque<double> myo2Deque;
 int myo1DequeSize;
 int myo2DequeSize;
 
-//stores ADC reading 
+//stores ADC reading Myoware sensor
 volatile double myo1Volts;
 volatile double myo2Volts;
+
+//stores ADC reading current sensor
+volatile double thumbCurrent;
+volatile double indexCurrent;
+volatile double middleCurrent;
+volatile double ringCurrent;
+volatile double pinkyCurrent;
 
 //Timer Flags
 volatile bool timer0 = false;
@@ -62,17 +83,79 @@ volatile int timerDebug = 0;
 bool IRAM_ATTR TimerHandler0(void * timerNo) { 
   timer0 = true;
   timerDebug = millis();
+  //acquire signal input
   myo1Volts = myoware1.readVoltage();
   myo2Volts = myoware2.readVoltage();
 
+  //current sensor inputs
+  thumbCurrent = thumbFingerCurrent.readVoltage();
+  indexCurrent = indexFingerCurrent.readVoltage();
+  middleCurrent = middleFingerCurrent.readVoltage();
+  ringCurrent = ringFingerCurrent.readVoltage();
+  pinkyCurrent = pinkyFingerCurrent.readVoltage();
+
   return true;
+}
+bool maxedCurrent(){
+  if (indexCurrent > 2.0){
+    return true;
+  }else if (thumbCurrent > 2.0){
+    return true;
+  }else if (thumbCurrent > 2.0){
+    return true;
+  }else if (thumbCurrent > 2.0){
+    return true;
+  }else  if (thumbCurrent > 2.0){
+    return true;
+  }else if (thumbCurrent > 2.0){
+    return true;
+  }
+  return false;
+}
+//predefine functions
+bool motorDriveCheck(uint8_t PwmChannel, uint8_t duty){
+  if (PwmChannel == FINGER_THUMB_CHANNEL){
+    if (duty < FINGER_THUMB_DRIVE_LIMIT){
+      return true; 
+    } else{
+      return false;
+    }
+  } else if (PwmChannel == FINGER_INDEX_CHANNEL){
+    if (duty < FINGER_INDEX_DRIVE_LIMIT){
+      return true;
+    } else {
+      return false;
+    }
+  }else if (PwmChannel == FINGER_MIDDLE_CHANNEL){
+    if (duty < FINGER_MIDDLE_DRIVE_LIMIT){
+      return true;
+    } else {
+      return false;
+    }
+  } else if (PwmChannel == FINGER_RING_CHANNEL){
+    if (duty < FINGER_RING_DRIVE_LIMIT){
+      return true;
+    } else {
+      return false;
+    }
+  } else if (PwmChannel == FINGER_PINKY_CHANNEL){
+    if (duty < FINGER_PINKY_DRIVE_LIMIT){
+      return true;
+    } else {
+      return false; 
+    }
+  } else {
+    return false;
+  }
 }
 
 void setup() {
   Serial.begin(115200);
 
-  //Hardware TImer Configuration
+  //Set CPU clock to 80MHz
+  setCpuFrequencyMhz(240); 
 
+  //Hardware TImer Configuration
   while (!Serial);
 
   delay(100);
@@ -91,8 +174,15 @@ void setup() {
   myoware1.attach(1); //Myoware 1 is attatched to GPIO 1
   myoware2.attach(2); //Myoware 2 is attatched to GPIO 2
 
+  //attach current sensors to gpoi
+  thumbFingerCurrent.attach(3);
+  indexFingerCurrent.attach(4);
+  middleFingerCurrent.attach(5);
+  ringFingerCurrent.attach(6);
+  pinkyFingerCurrent.attach(7);
+
   //Configures PWM Frequency and Resulution for all channels
-   for (int channel = 0; channel < 5; channel++){
+  for (int channel = 0; channel < 5; channel++){
      ledcSetup(channel, PWM_FREQ, PWM_RESOLUTION);
   }
 
@@ -107,11 +197,13 @@ void setup() {
   for (int channel = 0; channel < 5; channel++){
     ledcWrite(channel, MOTOR_HOME);
   }
+  Serial.println("finished setup");
 }
 
 void loop() {
 
   if (timer0){
+    Serial.println("timer flag");
     //reset timer flag
     timer0 = false;
 
@@ -121,23 +213,53 @@ void loop() {
 
     //matains Deque size of 500 elements,
     if ((myo1DequeSize = myo1Deque.size()) >= MAX_DEQUE_SIZE) 
-      //myo1Vector.remove(myo1VectorSize - 1); //removes last element of myo1vector
       myo1Deque.pop_back();
     else if ((myo2DequeSize = myo1Deque.size()) >= MAX_DEQUE_SIZE)
-      //myo2Vector.remove(myo2VectorSize - 1); //removes last element of myo2vector
-     myo1Deque.pop_back();
+      myo1Deque.pop_back();
 
-    Serial.println(timerDebug);
-    Serial.println(myo1Volts);
-    Serial.println(myo2Volts);
+    Serial.print(double(thumbCurrent));Serial.print(", ");
+    Serial.print(double(indexCurrent));Serial.print(", ");
+    Serial.print(double(middleCurrent));Serial.print(", ");
+    Serial.print(double(ringCurrent));Serial.print(", ");
+    Serial.println(double(pinkyCurrent));
   }
   
   //Tempoary drive for motors
   //if either myoware sensor reads above 1V then all motors are driven to max position
-  if (myo1Volts > 1.0 || myo2Volts > 1.0){
-    for (int channel = 0; channel < 5; channel++){
-      ledcWrite(channel, 205); //205 is 80% duty cycles @8 bit resolution
+  if (maxedCurrent()){
+    //drives motors to halt motion if current threshold is reached
+    for (int i = 0; i < 5; i++){
+      ledcWrite(i, 0);
     }
-  }
+  }else if (double(myo1Volts) > 1.0){
+    while(duty > MOTOR_HOME){ //205 is 80% duty cycles @8 bit resolution
+      //Serial.println(duty);
+      for (int i = 0; i < 5; i++){
+        //if (motorDriveCheck(i, duty)){
+          ledcWrite(i, duty);
+       /// }
+      }
+      duty -= 5; // current iterating in steps of 5 
+    }
+  }else if (double(myo2Volts) > 1.0){
+    while(duty > MOTOR_HOME){ //205 is 80% duty cycles @8 bit resolution
+      //Serial.println(duty);
+      for (int i = 0; i < 5; i++){
+        if (i != 2){
+         // if (motorDriveCheck(i, duty)){
+           ledcWrite(i, duty);
+          //}
+        }
+      }
+      duty -= 5; // current iterating in steps of 5 
+    }
+  }else{
+    //Motor Control to home position: 30%
+    //Serial.println("motor home");
+    for (int channel = 0; channel < 5; channel++){
+      duty = 205;
+      ledcWrite(channel, 205);
+    }
 
+  }
 }
