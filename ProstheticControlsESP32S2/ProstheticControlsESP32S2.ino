@@ -144,6 +144,26 @@ bool maxedCurrent(){
   }
   return false;
 }
+
+bool maxForce(){
+  if (fsrI_Volts > 2.7) {
+    return true;
+  } else if (fsrM_Volts > 2.7) {
+    return true;
+  } else if (fsrR_Volts > 2.7) {
+    return true;
+  } else if (fsrPi_Volts > 2.7) {
+    return true; 
+  } else if (fsrPa_Volts > 2.7) {
+    return true;
+  } else if (fsrPa_Volts > 2.7) {
+    return true;
+  }
+
+  return false;
+}
+
+
 //predefine functions
 bool motorDriveCheck(uint8_t PwmChannel, uint8_t duty){
   if (PwmChannel == FINGER_THUMB_CHANNEL){
@@ -266,7 +286,7 @@ void loop() {
   
   //Tempoary drive for motors
   //if either myoware sensor reads above 1V then all motors are driven to max position
-  if (maxedCurrent()){
+  if (maxedCurrent || maxForce()){
     //drives motors to halt motion if current threshold is reached
     for (int i = 0; i < 5; i++){
       ledcWrite(i, 0);
@@ -285,7 +305,7 @@ void loop() {
     while(duty > MOTOR_HOME){ //205 is 80% duty cycles @8 bit resolution
       //Serial.println(duty);
       for (int i = 0; i < 5; i++){
-        if (i != 2){
+        if (i != 1){
          // if (motorDriveCheck(i, duty)){
            ledcWrite(i, duty);
           //}
