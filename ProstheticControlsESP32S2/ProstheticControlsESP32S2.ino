@@ -18,7 +18,7 @@ int duty = 205;
 //General PWM Configuration
 #define PWM_FREQ 333 //Sets 333 Hz
 #define PWM_RESOLUTION 8 //Sets 8 bit resolution
-#define MOTOR_HOME 50 //30% duty cycle @8 bit resolution
+#define MOTOR_HOME 75 //30% duty cycle @8 bit resolution
 
 //Defines PWM Pins
 #define FINGER_THUMB_GPIO 42
@@ -52,6 +52,13 @@ ESP32AnalogRead indexFingerCurrent;
 ESP32AnalogRead middleFingerCurrent;
 ESP32AnalogRead ringFingerCurrent;
 ESP32AnalogRead pinkyFingerCurrent;
+ESP32AnalogRead fsrIndex; // FSR Sensor for Index Finger
+ESP32AnalogRead fsrMiddle; // FSR Sensor for Middle Finger
+ESP32AnalogRead fsrRing; // FSR Sensor for Ring Finger
+ESP32AnalogRead fsrPinky; // FSR Sensor for Pinky Finger
+ESP32AnalogRead fsrThumb; // FSR Sensor for Thumb
+ESP32AnalogRead fsrPalm; // FSR Sensor for Palm of Hand
+
 
 //Deque definitions
 std::deque<double> myo1Deque;
@@ -72,6 +79,14 @@ volatile double middleCurrent;
 volatile double ringCurrent;
 volatile double pinkyCurrent;
 
+//stores ADC reading fsr
+volatile double fsrI_Volts;
+volatile double fsrM_Volts;
+volatile double fsrR_Volts;
+volatile double fsrPi_Volts;
+volatile double fsrT_Volts;
+volatile double fsrPa_Volts;
+
 //Timer Flags
 volatile bool timer0 = false;
 
@@ -87,6 +102,14 @@ bool IRAM_ATTR TimerHandler0(void * timerNo) {
   myo1Volts = myoware1.readVoltage();
   myo2Volts = myoware2.readVoltage();
 
+  //fsr inputs
+  fsrI_Volts = fsrIndex.readVoltage();
+  fsrM_Volts = fsrMiddle.readVoltage();
+  fsrR_Volts = fsrRing.readVoltage();
+  fsrPi_Volts = fsrPinky.readVoltage();
+  fsrT_Volts = fsrThumb.readVoltage();
+  fsrPa_Volts = fsrPalm.readVoltage();
+
   //current sensor inputs
   thumbCurrent = thumbFingerCurrent.readVoltage();
   indexCurrent = indexFingerCurrent.readVoltage();
@@ -96,6 +119,15 @@ bool IRAM_ATTR TimerHandler0(void * timerNo) {
 
   return true;
 }
+
+double forceValue(double voltage){
+  double forceConversion;
+  forceConversion = pow((271/(47000*((3.3/voltage)-1))),(1/0.69));
+  
+  return forceConversion;
+}
+
+
 bool maxedCurrent(){
   if (indexCurrent > 2.0){
     return true;
@@ -173,6 +205,14 @@ void setup() {
   //attatch ADC object to GPIO pins
   myoware1.attach(1); //Myoware 1 is attatched to GPIO 1
   myoware2.attach(2); //Myoware 2 is attatched to GPIO 2
+
+  //attach fsrs to GPIO pins
+  fsrIndex.attach(8); //FSR on Index finger is attached to GPIO 8
+  fsrMiddle.attach(9); //FSR on Middle finger is attached to GPIO 9
+  fsrRing.attach(10); //FSR on Ring finger is attached to GPIO 10
+  fsrPinky.attach(11); //FSR on Pinky is attached to GPIO 11
+  fsrThumb.attach(12); //FSR on Thumb is attached to GPIO 12
+  fsrPalm.attach(13); //FSR on the Palm of the hand is attached to GPIO 13
 
   //attach current sensors to gpoi
   thumbFingerCurrent.attach(3);
@@ -257,8 +297,8 @@ void loop() {
     //Motor Control to home position: 30%
     //Serial.println("motor home");
     for (int channel = 0; channel < 5; channel++){
-      duty = 205;
-      ledcWrite(channel, 205);
+      duty = 200;
+      ledcWrite(channel, duty);
     }
 
   }
