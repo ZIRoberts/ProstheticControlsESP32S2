@@ -1,5 +1,5 @@
 # ProstheticControlsESP32S2
-***THIS PROJECT IS NOW OUT OF DATE. WE ARE CURRENTLY WORKING ON CONVERTING THE CODE FROM A SUPER LOOP ARCHITECTURE TO RTOS. A LINK TO THE NEW PROJECT WILL BE PROVIDED WHEN THE INTIAL RELEASE IS STABLE***
+***THIS PROJECT WAS CREATED WITH THE INTENT OF TESTING HARDWARE AND IS NOT A FINISHED PROJECT. THE CURRENT CODE RESPOSITORY IS FOUND AT: https://github.com/ZIRoberts/Prosthetic-Arm-Control-ESP32-RTOS***
 
 This project is the continuation of the effort by York College of Pennsylvania
 to develop an affordable DIY prosthetic arm for below the elbow amputations. 
